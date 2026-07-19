@@ -2,10 +2,11 @@
 
 ## Current status — 2026-07-19
 
-The current working tree has been prepared as an MIT-licensed public source
-snapshot. On 2026-07-19, the default branch was replaced with a clean root
-commit and verified in GitHub Actions. The repository must remain private until
-the remaining legacy refs and previously published test credentials are handled.
+The MIT-licensed source snapshot was published at
+`https://github.com/smadrom/coji` on 2026-07-19. The default branch has a clean
+root history, the legacy remote branches were deleted, and GitHub Actions passed
+on the published tree. The former smoke-test credential must still be treated as
+exposed until its account is rotated or deleted.
 
 ## Completed
 
@@ -32,6 +33,11 @@ the remaining legacy refs and previously published test credentials are handled.
   `smadrom <sn.one.dev@gmail.com>`.
 - Made the ffmpeg argv test harness executable on both Windows and POSIX so the
   public CI test suite runs consistently.
+- Deleted the two legacy remote feature branches; GitHub has only the clean
+  `main` branch and no tags, releases, pull requests, or forks at publication.
+- Changed repository visibility to public and enabled secret scanning, push
+  protection, Dependabot security updates, vulnerability alerts, and private
+  vulnerability reporting.
 
 ## Verification
 
@@ -45,7 +51,9 @@ the remaining legacy refs and previously published test credentials are handled.
 | `bun audit --audit-level=high` | PASS |
 | Current releasable-file secret pattern scan | PASS, no high-confidence matches |
 | Compose-file YAML parse | PASS for all four files |
-| GitHub Actions CI | PASS: verify plus Docker/Playwright e2e, run `29675738397` |
+| GitHub Actions CI | PASS: verify plus Docker/Playwright e2e, run `29675878073` |
+| GitHub remote refs | PASS: only clean `refs/heads/main` remains |
+| Anonymous repository access | PASS: public repository returned HTTP 200 |
 | Local Docker Compose config/build and Playwright e2e | SKIPPED: Docker is unavailable on this host |
 | DB-backed integration suites | SKIPPED: no test PostgreSQL URL was supplied |
 
@@ -59,42 +67,31 @@ The web production build succeeds with a warning that its main JavaScript chunk
 is about 560 kB before gzip. This is a performance follow-up, not a release
 correctness failure.
 
-## Open gates before changing visibility
+## Post-publication security and acceptance follow-ups
 
 1. **Rotate or delete the old smoke-test account.** Treat its previous password
-   as exposed even though it is absent from the clean source snapshot.
-2. **Remove or rewrite all remaining legacy remote refs.** The clean root commit
-   replaces `main`, but two private feature branches still retain the old graph,
-   including internal host details and the former smoke credential. Do not make
-   the repository public until those refs and any associated pull-request refs
-   have been reviewed. GitHub Support may be needed to purge cached sensitive
-   data after the credential has been rotated.
+   as exposed even though it is absent from the published source snapshot.
+2. **Request cached sensitive-data cleanup from GitHub Support if needed.** The
+   old branch refs are deleted, but ref deletion alone does not guarantee
+   immediate removal of cached views or dangling Git objects.
 3. **Run production Compose acceptance.** The isolated Docker/Playwright CI
    stack passes; production configuration still needs an environment-specific
    `docker compose ... config` and deployment smoke test.
 4. **Run DB-backed tests** against a disposable PostgreSQL database.
-5. **Configure GitHub while still private:** enable private vulnerability
-   reporting, secret scanning/push protection where available, branch protection
-   for `main`, required CI checks, and automatic deletion of merged branches.
-6. **Review commercial terms.** Coji code is MIT, but Remotion 4.0.491 uses a
+5. **Review commercial terms.** Coji code is MIT, but Remotion 4.0.491 uses a
    custom license and external providers have separate terms. See
    `THIRD_PARTY_NOTICES.md`.
 
-## Suggested publication sequence
+## Next steps
 
 1. Rotate the exposed smoke credential.
-2. Verify the clean `main` root commit and its CI run while the repository is
-   private.
-3. Remove or rewrite the two legacy remote feature branches and review any
-   associated pull-request refs.
-4. Run the remaining Docker and database acceptance checks.
-5. Enable repository security and branch-protection settings.
-6. Change visibility to public.
-7. Move the changelog's `Unreleased` entries to `0.3.0`, create the `v0.3.0`
+2. Request GitHub cached-data cleanup if the old commit objects remain
+   accessible after credential rotation.
+3. Run the remaining production Compose and database acceptance checks.
+4. Move the changelog's `Unreleased` entries to `0.3.0`, create the `v0.3.0`
    tag, and publish GitHub release notes.
 
-The repository was confirmed as `PRIVATE` through GitHub CLI on 2026-07-19.
-The maintainer approved replacing `main` with clean root commit `0cb9047`.
-Follow-up commit `58d4309` fixed the cross-platform ffmpeg test harness, and
-GitHub Actions run `29675738397` passed both verify and Docker/Playwright e2e.
-Repository visibility was not changed.
+The repository was changed to `PUBLIC` through GitHub CLI on 2026-07-19 and was
+confirmed anonymously with HTTP 200. At publication, the remote contained only
+the clean `main` branch. Automatic deletion of merged branches and public
+security analysis are enabled.
