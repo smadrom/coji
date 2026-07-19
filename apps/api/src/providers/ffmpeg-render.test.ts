@@ -17,7 +17,7 @@
  * Runs unconditionally in CI.
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FfmpegRenderProvider } from './ffmpeg-render.ts';
@@ -46,7 +46,7 @@ beforeAll(async () => {
   fakeFfmpegPath = join(tmpDir, 'fake-ffmpeg.ts');
   await writeFile(
     fakeFfmpegPath,
-    `
+    `#!/usr/bin/env bun
 import { writeFileSync } from 'node:fs';
 // argv[0] = bun, argv[1] = script, argv[2..] = ffmpeg args
 const args = process.argv.slice(2);
@@ -58,6 +58,7 @@ if (out) writeFileSync(out, '');
 process.exit(0);
 `,
   );
+  if (process.platform !== 'win32') await chmod(fakeFfmpegPath, 0o755);
 
   // Minimal HTTP server that returns dummy bytes for any GET.
   server = Bun.serve({
@@ -76,69 +77,23 @@ afterAll(async () => {
   await rm(tmpDir, { recursive: true, force: true });
 });
 
-/** Run the provider with a given composition and return the parsed argv array. */
-async function captureArgv(
-  clips: { videoUrl: string; startFrom?: number; endAt?: number }[],
-  fps = 30,
-): Promise<string[]> {
-  // Write a fresh empty argv file so we can detect if the fake ffmpeg ran.
-  await writeFile(argvFile, '[]');
-
-  const provider = new FfmpegRenderProvider({
-    ffmpegPath: `bun ${fakeFfmpegPath}`,
-    fps,
-    width: 1280,
-    height: 720,
-  });
-  // The provider spawns ffmpeg via `spawn(cmd, args)`. Since our fake path
-  // contains a space ("bun /tmp/.../fake.ts"), we need to split it.
-  // FfmpegRenderProvider accepts ffmpegPath as the command name, not a shell
-  // string — so we need to use a wrapper approach instead.
-  // Patch: Use a shell-script wrapper on Windows via bun run.
-  // Actually, FfmpegRenderProvider uses spawn(ffmpegPath, args) directly —
-  // `bun /path/to/script` won't work as a single argv[0]. Use a real
-  // executable wrapper instead.
-  //
-  // On all platforms we can write a tiny shell/batch script that delegates to
-  // `bun run`. But for cross-platform CI simplicity we write a second wrapper
-  // that is a platform-agnostic Bun script loader.
-  // Re-approach: write a compiled fake binary using Bun.build or just test
-  // the pure helper functions (trimExpr) + the argv-builder separately.
-  //
-  // Since FfmpegRenderProvider.#ffmpeg is private, we test the observable
-  // contract instead: call render() with a controlled HTTP server and verify
-  // the result shape. The trimExpr logic is tested via the filter_complex
-  // string injected into the argv — but we need a real executable for spawn.
-  //
-  // Simplest cross-platform approach: write a .js file and use `bun` as the
-  // executable + the script path as argv[1], exploiting the fact that
-  // FfmpegRenderProvider splits by space when the path contains one? No —
-  // it uses the string verbatim as the command. We cannot inject spaces.
-  //
-  // Solution: write a real executable Bun script at a path with NO spaces,
-  // and set PATH so `ffmpeg` resolves to it.
-  void clips;
-  void fps;
-  void provider;
-  return [];
-}
-
 // ---------------------------------------------------------------------------
 // trimExpr logic — verified indirectly via filter_complex assertions below.
 // We test the pure helper through the observable argv using an actual process.
 // ---------------------------------------------------------------------------
 
 describe('FfmpegRenderProvider (argv assertions)', () => {
-  // We run the provider with the real `bun` as the ffmpeg binary, pointing at
-  // our fake script. On Windows, spawn() needs `cmd` as a bare executable name
-  // or full path with no embedded spaces. We create a wrapper .cmd file.
+  // POSIX runs the executable Bun script directly. Windows uses a .cmd wrapper
+  // because it does not honor shebangs.
   let wrapperPath: string;
 
   beforeAll(async () => {
-    // Windows: create a .cmd wrapper that runs the Bun script.
-    // On POSIX, a plain shell script would do; Bun works on both.
-    wrapperPath = join(tmpDir, 'ffmpeg-fake.cmd');
-    await writeFile(wrapperPath, `@echo off\nbun "${fakeFfmpegPath}" %*\n`);
+    if (process.platform === 'win32') {
+      wrapperPath = join(tmpDir, 'ffmpeg-fake.cmd');
+      await writeFile(wrapperPath, `@echo off\nbun "${fakeFfmpegPath}" %*\n`);
+    } else {
+      wrapperPath = fakeFfmpegPath;
+    }
   });
 
   function makeProvider(fps = 30) {
