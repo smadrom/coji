@@ -38,6 +38,10 @@ exposed until its account is rotated or deleted.
 - Changed repository visibility to public and enabled secret scanning, push
   protection, Dependabot security updates, vulnerability alerts, and private
   vulnerability reporting.
+- Deleted 40 Actions runs tied to the removed private history, including their
+  logs and artifacts; only runs from the clean `main` graph remain.
+- Protected `main` with strict `verify` and `e2e` checks, linear history,
+  conversation resolution, and force-push/branch-deletion prevention.
 
 ## Verification
 
@@ -51,9 +55,11 @@ exposed until its account is rotated or deleted.
 | `bun audit --audit-level=high` | PASS |
 | Current releasable-file secret pattern scan | PASS, no high-confidence matches |
 | Compose-file YAML parse | PASS for all four files |
-| GitHub Actions CI | PASS: verify plus Docker/Playwright e2e, run `29675878073` |
+| GitHub Actions CI | PASS: verify plus Docker/Playwright e2e, run `29676158163` |
+| GitHub Actions history | PASS: no run remains from outside the clean `main` graph |
 | GitHub remote refs | PASS: only clean `refs/heads/main` remains |
 | Anonymous repository access | PASS: public repository returned HTTP 200 |
+| `main` branch protection | PASS: strict `verify` + `e2e`, linear history, no force-push/deletion |
 | Local Docker Compose config/build and Playwright e2e | SKIPPED: Docker is unavailable on this host |
 | DB-backed integration suites | SKIPPED: no test PostgreSQL URL was supplied |
 
@@ -94,4 +100,5 @@ correctness failure.
 The repository was changed to `PUBLIC` through GitHub CLI on 2026-07-19 and was
 confirmed anonymously with HTTP 200. At publication, the remote contained only
 the clean `main` branch. Automatic deletion of merged branches and public
-security analysis are enabled.
+security analysis are enabled. Legacy Actions logs were removed and `main` is
+protected by the required CI checks.
