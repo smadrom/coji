@@ -3,9 +3,9 @@
 ## Current status — 2026-07-19
 
 The current working tree has been prepared as an MIT-licensed public source
-snapshot. The default branch is being replaced with a clean root commit, but
-the GitHub repository must remain private until the remaining legacy refs and
-the previously published test credentials are handled.
+snapshot. On 2026-07-19, the default branch was replaced with a clean root
+commit and verified in GitHub Actions. The repository must remain private until
+the remaining legacy refs and previously published test credentials are handled.
 
 ## Completed
 
@@ -28,6 +28,10 @@ the previously published test credentials are handled.
   AWS SDK, Better Auth, and Elysia. Known high-severity advisories are resolved.
 - Fixed the root test command so Playwright specs are not loaded by `bun:test`.
 - Made root build/typecheck filters cover every typed `@coji/*` workspace.
+- Replaced `main` with an approved clean root commit authored as
+  `smadrom <sn.one.dev@gmail.com>`.
+- Made the ffmpeg argv test harness executable on both Windows and POSIX so the
+  public CI test suite runs consistently.
 
 ## Verification
 
@@ -41,7 +45,8 @@ the previously published test credentials are handled.
 | `bun audit --audit-level=high` | PASS |
 | Current releasable-file secret pattern scan | PASS, no high-confidence matches |
 | Compose-file YAML parse | PASS for all four files |
-| Docker Compose config/build and Playwright e2e | SKIPPED: Docker is unavailable on this host |
+| GitHub Actions CI | PASS: verify plus Docker/Playwright e2e, run `29675738397` |
+| Local Docker Compose config/build and Playwright e2e | SKIPPED: Docker is unavailable on this host |
 | DB-backed integration suites | SKIPPED: no test PostgreSQL URL was supplied |
 
 `bun audit` without a severity threshold still reports one moderate and one low
@@ -64,8 +69,9 @@ correctness failure.
    the repository public until those refs and any associated pull-request refs
    have been reviewed. GitHub Support may be needed to purge cached sensitive
    data after the credential has been rotated.
-3. **Run Docker acceptance.** Validate `docker compose ... config`, build both
-   images, run the isolated Playwright stack, and tear it down with `down -v`.
+3. **Run production Compose acceptance.** The isolated Docker/Playwright CI
+   stack passes; production configuration still needs an environment-specific
+   `docker compose ... config` and deployment smoke test.
 4. **Run DB-backed tests** against a disposable PostgreSQL database.
 5. **Configure GitHub while still private:** enable private vulnerability
    reporting, secret scanning/push protection where available, branch protection
@@ -88,5 +94,7 @@ correctness failure.
    tag, and publish GitHub release notes.
 
 The repository was confirmed as `PRIVATE` through GitHub CLI on 2026-07-19.
-The maintainer approved replacing `main` with a clean root commit. Repository
-visibility was not changed.
+The maintainer approved replacing `main` with clean root commit `0cb9047`.
+Follow-up commit `58d4309` fixed the cross-platform ffmpeg test harness, and
+GitHub Actions run `29675738397` passed both verify and Docker/Playwright e2e.
+Repository visibility was not changed.
