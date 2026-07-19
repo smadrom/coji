@@ -1,0 +1,40 @@
+node_modules/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+
+# env
+.env
+.env.local
+.env.*.local
+
+# storage (local-fs StorageProvider fake)
+.storage/
+storage/
+.omc/tmp/
+
+# logs
+*.log
+logs/
+
+# local release/deploy artifacts
+*.tar.gz
+dashboard.html
+
+# local task and business notes
+TASKS.md
+docs/MONETIZATION.md
+
+# os
+.DS_Store
+Thumbs.db
+
+# editor
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Agent runtime state and private handoffs
+.claude/*.lock
+.omc/

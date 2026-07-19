@@ -1,0 +1,7 @@
+[test]
+# Run only *.test.ts across the workspaces.
+root = "."
+# Preload enables the AUTH_TEST_HEADER escape hatch (task #22) so app.handle
+# suites authenticate via x-user-id against the REAL ownership guard, no live
+# Better Auth session required.
+preload = ["./apps/api/src/test-setup.ts"]

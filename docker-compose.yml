@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: coji-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: coji
+      POSTGRES_PASSWORD: coji
+      POSTGRES_DB: coji
+    ports:
+      - '5432:5432'
+    volumes:
+      - coji-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U coji -d coji']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  coji-pgdata:

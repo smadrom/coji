@@ -1,0 +1,41 @@
+{
+  "name": "coji",
+  "version": "0.3.0",
+  "description": "Self-hostable AI video-generation pipeline built with Bun, Elysia, React, and PostgreSQL.",
+  "private": true,
+  "license": "MIT",
+  "packageManager": "bun@1.3.14",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/smadrom/coji.git"
+  },
+  "bugs": {
+    "url": "https://github.com/smadrom/coji/issues"
+  },
+  "homepage": "https://github.com/smadrom/coji#readme",
+  "keywords": ["ai-video", "bun", "elysia", "react", "remotion", "self-hosted"],
+  "overrides": {
+    "protobufjs": "7.6.5"
+  },
+  "workspaces": ["packages/*", "apps/*", "e2e"],
+  "scripts": {
+    "dev": "bun run --filter './apps/*' dev",
+    "dev:api": "bun run --filter '@coji/api' dev",
+    "dev:web": "bun run --filter '@coji/web' dev",
+    "build": "bun run --filter '@coji/*' build",
+    "test": "bun test apps packages",
+    "test:e2e": "bun run --filter @coji/e2e test",
+    "typecheck": "bun run --filter '@coji/*' typecheck",
+    "spike:render": "bun run --filter '@coji/render-spike' smoke",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "db:generate": "bun run --filter '@coji/api' db:generate",
+    "db:migrate": "bun run --filter '@coji/api' db:migrate",
+    "db:seed:dev": "bun run --filter '@coji/api' db:seed:dev"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "typescript": "^5.6.0"
+  }
+}

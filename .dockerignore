@@ -1,0 +1,28 @@
+# Build context excludes — keep images small and free of secrets/local state.
+.git
+.github
+.omc
+node_modules
+**/node_modules
+dist
+**/dist
+.storage
+.storage-test
+**/*.tsbuildinfo
+
+# Secrets / local env — never copy into any image.
+.env
+.env.*
+!.env.example
+
+# Editor / OS cruft
+.vscode
+.idea
+.DS_Store
+
+# Docs & tests are not needed at runtime (kept out of runtime context).
+*.log
+*.tar.gz
+dashboard.html
+TASKS.md
+docs/MONETIZATION.md

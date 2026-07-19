@@ -1,0 +1,1 @@
+ALTER TABLE "clips" ADD COLUMN "duration_seconds" double precision;

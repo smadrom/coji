@@ -1,0 +1,80 @@
+# Development compose — hot-reloading api + web against a local postgres.
+#
+# - Source is bind-mounted so edits reload instantly (api: `bun --watch`,
+#   web: Vite HMR). An anonymous volume masks node_modules so the container's
+#   installed deps are used, not the host's.
+# - Vite runs with host 0.0.0.0 + usePolling so HMR works across the Docker
+#   boundary (host file events don't always propagate into containers).
+# - The base docker-compose.yml stays DB-only; this file is the full dev stack.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up
+#
+# NOTE: unvalidated on this host (Docker not installed) — see docs/docker.md.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: coji
+      POSTGRES_PASSWORD: coji
+      POSTGRES_DB: coji
+    ports:
+      - '5432:5432'
+    volumes:
+      - coji-pgdata-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U coji -d coji']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: oven/bun:1.3.14-alpine
+    working_dir: /app
+    command: sh -c "bun install --frozen-lockfile && cd apps/api && bun run db:migrate && bun --watch src/server.ts"
+    environment:
+      PORT: 3001
+      NODE_ENV: development
+      DATABASE_URL: postgres://coji:coji@db:5432/coji
+      IMAGE_PROVIDER: noop
+      ANIMATION_PROVIDER: noop
+      RENDER_PROVIDER: noop
+      STORAGE_PROVIDER: local-fs
+    volumes:
+      - ./:/app
+      # Anonymous volumes mask host node_modules with the in-container install.
+      - /app/node_modules
+      - /app/apps/api/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/shared/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '3001:3001'
+
+  web:
+    image: oven/bun:1.3.14-alpine
+    working_dir: /app/apps/web
+    # server.host 0.0.0.0 so the dev server is reachable from the host.
+    command: sh -c "cd /app && bun install --frozen-lockfile && cd apps/web && bun run dev --host 0.0.0.0"
+    environment:
+      # Browser talks to the api published on the host at :3001.
+      VITE_API_URL: http://localhost:3001
+      # Make file-watching reliable inside the container.
+      CHOKIDAR_USEPOLLING: 'true'
+      VITE_HMR_HOST: localhost
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/shared/node_modules
+    depends_on:
+      - api
+    ports:
+      - '5173:5173'
+
+volumes:
+  coji-pgdata-dev:

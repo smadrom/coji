@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# CI runs with NO external provider API keys. The Noop providers and the
+# local-filesystem StorageProvider are the defaults, so the full suite is free.
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IMAGE_PROVIDER: noop
+      ANIMATION_PROVIDER: noop
+      RENDER_PROVIDER: noop
+      STORAGE_PROVIDER: local-fs
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun run test
+
+      - name: Dependency audit (high and critical)
+        run: bun audit --audit-level=high
+
+  # Real browser e2e against a production-like Noop stack (built web + nginx +
+  # Elysia + Postgres). Separate, NON-BLOCKING job: it does not gate fast PR
+  # feedback from `verify`. Zero paid provider calls (Noop / local-fs).
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Don't block the merge/feedback path on the slower docker stack.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build & start e2e stack
+        run: docker compose -p coji-e2e -f docker-compose.e2e.yml up -d --build
+
+      - name: Wait for stack health
+        run: bun run e2e/health-wait.ts
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+        working-directory: e2e
+
+      - name: Run e2e tests
+        run: bun run --filter @coji/e2e test
+
+      - name: Dump stack logs on failure
+        if: failure()
+        run: docker compose -p coji-e2e -f docker-compose.e2e.yml logs --no-color
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Tear down e2e stack
+        if: always()
+        run: docker compose -p coji-e2e -f docker-compose.e2e.yml down -v

@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "quality" text DEFAULT 'max' NOT NULL;

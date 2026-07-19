@@ -1,0 +1,119 @@
+# e2e compose — a production-LIKE Noop stack for real browser Playwright tests.
+#
+# Mirrors prod shape (built web bundle behind nginx + Elysia api + Postgres) so
+# the tests exercise the nginx `/api`-strip and upstream proxying — the class of
+# bug that vite-dev would NOT reproduce (plan Option B1, Gotchas #10). Everything
+# is Noop / local-fs: ZERO paid provider calls, deterministic outputs.
+#
+# Isolation (never touch prod): always run with an explicit project name and the
+# host port + origin pinned via env, so this stack cannot collide with the prod
+# coji stack (project `coji`: coji-api-1/coji-web-1/coji-db-1 behind Traefik,
+# volumes coji-pgdata/coji-storage). This file declares its OWN named volumes
+# (coji-e2e-*) and joins NO external/traefik network and carries NO traefik
+# labels, so `down -v` cleans only e2e state.
+#
+# Local (CI / laptop) — web on :8080:
+#   docker compose -p coji-e2e -f docker-compose.e2e.yml up -d --build
+#   E2E_BASE_URL=http://localhost:8080 bun run e2e/health-wait.ts
+#   E2E_BASE_URL=http://localhost:8080 bun run --filter @coji/e2e test
+#   docker compose -p coji-e2e -f docker-compose.e2e.yml down -v
+#
+# The published web origin is BOTH the Playwright baseURL AND the api's
+# BETTER_AUTH_URL (so Better Auth accepts the browser Origin; Gotchas #9). Do
+# NOT point BETTER_AUTH_URL at the api port. E2E_BETTER_AUTH_URL MUST match the
+# origin Playwright actually opens (localhost:${E2E_WEB_PORT}).
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: coji
+      POSTGRES_PASSWORD: coji
+      POSTGRES_DB: coji
+    # No host port — only the api/migrate services on the compose network reach it.
+    # Own named volume (NOT prod's coji-pgdata) so `down -v` wipes only e2e data.
+    volumes:
+      - coji-e2e-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U coji -d coji']
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  # One-shot: run migrations, then apply the SQL seed (stage_prices + the
+  # auto-credit trigger). The api service waits for this to complete.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    working_dir: /app/apps/api
+    environment:
+      DATABASE_URL: postgres://coji:coji@db:5432/coji
+    # The api image copies apps/api + packages/shared but NOT e2e/, so bind-mount
+    # the seed files in (read-only) for the migrate step. They MUST land UNDER
+    # apps/api so Bun resolves `postgres` from apps/api/node_modules (bun nests
+    # it there, not at the repo-root node_modules — resolving from /app/e2e fails).
+    volumes:
+      - ./e2e/seed.sql:/app/apps/api/e2e-seed/seed.sql:ro
+      - ./e2e/seed.ts:/app/apps/api/e2e-seed/seed.ts:ro
+    command: sh -c "bun run db:migrate && bun run /app/apps/api/e2e-seed/seed.ts"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: 'no'
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      PORT: 3001
+      # Noop boot gate bars Noop payments in production, so run development.
+      NODE_ENV: development
+      DATABASE_URL: postgres://coji:coji@db:5432/coji
+      # Free, deterministic providers — never a paid API in e2e.
+      IMAGE_PROVIDER: noop
+      ANIMATION_PROVIDER: noop
+      RENDER_PROVIDER: noop
+      STORAGE_PROVIDER: local-fs
+      # Own storage dir on an e2e-only volume (never prod's coji-storage).
+      STORAGE_LOCAL_DIR: /data/storage
+      PAYMENTS_PROVIDER: noop
+      # The background runner MUST be on so jobs progress (Gotchas #5: =true).
+      RUNNER_ENABLED: 'true'
+      RUNNER_TICK_MS: '500'
+      # Real auth only — the x-user-id test hatch stays OFF in the e2e stack.
+      AUTH_TEST_HEADER: 'false'
+      # Origin Better Auth accepts = the browser origin = the web service URL
+      # published on the host (NOT the api port). Gotchas #9. Defaults to :8080
+      # Override both variables together when using a different host port.
+      BETTER_AUTH_URL: ${E2E_BETTER_AUTH_URL:-http://localhost:8080}
+    volumes:
+      - coji-e2e-storage:/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # No host port — the browser reaches the api only through nginx (`/api`).
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Same-origin API; nginx proxies /api -> api:3001 (strip + client base
+        # cancel out, Gotchas #10).
+        VITE_API_URL: /api
+    # Host port pinned via env: :8080 local/CI, :8090 on central (8080 taken).
+    ports:
+      - '${E2E_WEB_PORT:-8080}:80'
+    depends_on:
+      - api
+
+# e2e-only named volumes. With `-p coji-e2e` they materialise as
+# coji-e2e_coji-e2e-pgdata / coji-e2e_coji-e2e-storage — distinct from prod's
+# coji-pgdata / coji-storage. `down -v` removes only these.
+volumes:
+  coji-e2e-pgdata:
+  coji-e2e-storage:
